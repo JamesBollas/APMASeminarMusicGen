@@ -17,8 +17,8 @@ import torchvision.utils as vutils
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from IPython.display import HTML
-from scipy import io
+#from IPython.display import HTML
+#from scipy import io
 
 # Set random seed for reproducibility
 manualSeed = 999
@@ -34,35 +34,35 @@ dataroot = "data/music_files"
 workers = 2
 
 # Batch size during training
-batch_size = 128
+batch_size = 2
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
-image_size = 784
+#image_size = 9000
 
 # size of training data vector
-nx = 784
+nx = 9000
 
 # Size of z latent vector (i.e. size of generator input)
 nz = 100
 
 # Size of hidden layers in generator
-ngf = 100
+ngf = 1000
 
 # Size of hidden layers in discriminator
-ndf = 100
+ndf = 300
 
 # Number of training epochs
-num_epochs = 50
+num_epochs = 500
 
 # Learning rate for optimizers
-lr = 0.0002
+lr = 0.02
 
 # Beta1 hyperparam for Adam optimizers
 beta1 = 0.5
 
 # Number of GPUs available. Use 0 for CPU mode.
-ngpu = 0
+ngpu = 1
 
 device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
 #### Load Data using Dataloader
@@ -95,6 +95,9 @@ class Generator(nn.Module):
             nn.Linear(ngf, ngf, bias=True),
             nn.BatchNorm1d(ngf),
             nn.ReLU(),
+            nn.Linear(ngf, ngf, bias=True),
+            nn.BatchNorm1d(ngf),
+            nn.ReLU(),
             nn.Linear( ngf, nx, bias=True),
             nn.Tanh()
         )
@@ -113,7 +116,7 @@ if (device.type == 'cuda') and (ngpu > 1):
 netG.apply(weights_init)
 
 # Print the model
-print(netG)
+#print(netG)
 
 # a = np.random.random((1,nz))
 # netG.eval()
@@ -126,13 +129,13 @@ class Discriminator(nn.Module):
         self.main = nn.Sequential(
             nn.Linear( nx, ndf, bias=True),
             nn.BatchNorm1d(ndf),
-            nn.LeakyReLU(),
+            nn.LeakyReLU(.5),
             nn.Linear( ndf, ndf, bias=True),
             nn.BatchNorm1d(ndf),
-            nn.LeakyReLU(),
+            nn.LeakyReLU(.5),
             nn.Linear(ndf, ndf, bias=True),
             nn.BatchNorm1d(ndf),
-            nn.LeakyReLU(),
+            nn.LeakyReLU(.5),
             nn.Linear( ndf, 1, bias=True),
             nn.Sigmoid()
         )
@@ -162,11 +165,13 @@ netD.apply(weights_init)
 
 # o = netD(x)
 
-mat_dict = io.loadmat('digits.mat')
+# mat_dict = io.loadmat('digits.mat')
 
-X = mat_dict['X']
+# X = mat_dict['X']
 
-X = torch.Tensor(X)
+X = np.load("music_data.npz")
+print(X['classical'].shape)
+X = torch.Tensor(X['classical'])
 
 dataset = torch.utils.data.TensorDataset(X)
 
@@ -186,8 +191,8 @@ real_label = 1.
 fake_label = 0.
 
 # Setup Adam optimizers for both G and D
-optimizerD = optim.Adam(netD.parameters(), lr=lr, betas=(beta1, 0.999))
-optimizerG = optim.Adam(netG.parameters(), lr=lr, betas=(beta1, 0.999))
+optimizerD = optim.Adam(netD.parameters(), lr=lr)#, momentum = 0.0001)
+optimizerG = optim.Adam(netG.parameters(), lr=lr*10)#,momentum = 0.001)
 
 # Training Loop
 
@@ -208,6 +213,7 @@ for epoch in range(num_epochs):
         ###########################
         ## Train with all-real batch
         netD.zero_grad()
+
         # Format batch
         real_cpu = data[0].to(device)
         b_size = real_cpu.size(0)
@@ -243,6 +249,7 @@ for epoch in range(num_epochs):
         # (2) Update G network: maximize log(D(G(z)))
         ###########################
         netG.zero_grad()
+
         label.fill_(real_label)  # fake labels are real for generator cost
         # Since we just updated D, perform another forward pass of all-fake batch through D
         output = netD(fake).view(-1)
@@ -250,6 +257,7 @@ for epoch in range(num_epochs):
         errG = criterion(output, label)
         # Calculate gradients for G
         errG.backward()
+        #print(errG.grad)
         D_G_z2 = output.mean().item()
         # Update G
         optimizerG.step()
@@ -263,15 +271,16 @@ for epoch in range(num_epochs):
         # Save Losses for plotting later
         G_losses.append(errG.item())
         D_losses.append(errD.item())
-
+        np.savez("gan_out.npz",fake.detach().cpu().numpy())
         # Check how the generator is doing by saving G's output on fixed_noise
-        if (iters % 500 == 0) or ((epoch == num_epochs-1) and (i == len(dataloader)-1)):
+        if (iters % 500 == 0) or ((epoch == num_epochs-1) and (i == len(loader)-1)):
             with torch.no_grad():
                 fake = netG(fixed_noise).detach().cpu()
-            first_image = np.array(fake[0], dtype='float')
-            pixels = first_image.reshape((28, 28))
-            plt.imshow(pixels, cmap='gray')
-            plt.show()
+                np.savez("gan_out.npz",fake)
+            #first_image = np.array(fake[0], dtype='float')
+            #pixels = first_image.reshape((28, 28))
+            #plt.imshow(pixels, cmap='gray')
+            #plt.show()
             img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
 
         iters += 1
