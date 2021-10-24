@@ -31,32 +31,32 @@ torch.manual_seed(manualSeed)
 dataroot = "data/music_files"
 
 # Number of workers for dataloader
-workers = 2
+workers = 1
 
 # Batch size during training
-batch_size = 2
+batch_size = 100
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
 #image_size = 9000
 
 # size of training data vector
-nx = 9000
+nx = 900
 
 # Size of z latent vector (i.e. size of generator input)
-nz = 100
+nz = 50
 
 # Size of hidden layers in generator
-ngf = 1000
+ngf = 300
 
 # Size of hidden layers in discriminator
-ndf = 300
+ndf = 50
 
 # Number of training epochs
 num_epochs = 500
 
 # Learning rate for optimizers
-lr = 0.02
+lr = 0.002
 
 # Beta1 hyperparam for Adam optimizers
 beta1 = 0.5
@@ -87,19 +87,19 @@ class Generator(nn.Module):
         self.ngpu = ngpu
         self.main = nn.Sequential(
             nn.Linear( nz, ngf, bias=True),
-            nn.BatchNorm1d(ngf),
+            #nn.BatchNorm1d(ngf),
             nn.ReLU(),
             nn.Linear( ngf, ngf, bias=True),
-            nn.BatchNorm1d(ngf),
+            #nn.BatchNorm1d(ngf),
             nn.ReLU(),
             nn.Linear(ngf, ngf, bias=True),
-            nn.BatchNorm1d(ngf),
+            #nn.BatchNorm1d(ngf),
             nn.ReLU(),
             nn.Linear(ngf, ngf, bias=True),
-            nn.BatchNorm1d(ngf),
+            #nn.BatchNorm1d(ngf),
             nn.ReLU(),
             nn.Linear( ngf, nx, bias=True),
-            nn.Tanh()
+            torch.nn.Softmax(dim=0)
         )
 
     def forward(self, input):
@@ -127,10 +127,8 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
+            nn.Softmax(dim=0),
             nn.Linear( nx, ndf, bias=True),
-            nn.BatchNorm1d(ndf),
-            nn.LeakyReLU(.5),
-            nn.Linear( ndf, ndf, bias=True),
             nn.BatchNorm1d(ndf),
             nn.LeakyReLU(.5),
             nn.Linear(ndf, ndf, bias=True),
@@ -170,9 +168,13 @@ netD.apply(weights_init)
 # X = mat_dict['X']
 
 X = np.load("music_data.npz")
-print(X['classical'].shape)
-X = torch.Tensor(X['classical'])
-
+#print(X['classical'].shape)
+#print(np.max(X['classical'][0]))
+styles = ['classical','baroque','modern','romantic','addon']
+used_styles = ['romantic']
+X = torch.Tensor(np.concatenate([X[x][:,:900] for x in used_styles]))
+X /= 5
+#quit()
 dataset = torch.utils.data.TensorDataset(X)
 
 loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
@@ -191,8 +193,8 @@ real_label = 1.
 fake_label = 0.
 
 # Setup Adam optimizers for both G and D
-optimizerD = optim.Adam(netD.parameters(), lr=lr)#, momentum = 0.0001)
-optimizerG = optim.Adam(netG.parameters(), lr=lr*10)#,momentum = 0.001)
+optimizerD = optim.Adam(netD.parameters(), lr=lr*10)#, momentum = 0.0001)
+optimizerG = optim.Adam(netG.parameters(), lr=lr, betas=(.9,.999))#,momentum = 0.001)
 
 # Training Loop
 
@@ -271,12 +273,14 @@ for epoch in range(num_epochs):
         # Save Losses for plotting later
         G_losses.append(errG.item())
         D_losses.append(errD.item())
-        np.savez("gan_out.npz",fake.detach().cpu().numpy())
+        if epoch > 100 and D_G_z2 > .3:
+            np.savez("gan_out.npz",fake.detach().cpu().numpy() * 5)
+        
         # Check how the generator is doing by saving G's output on fixed_noise
         if (iters % 500 == 0) or ((epoch == num_epochs-1) and (i == len(loader)-1)):
             with torch.no_grad():
                 fake = netG(fixed_noise).detach().cpu()
-                np.savez("gan_out.npz",fake)
+                #np.savez("gan_out.npz",fake)
             #first_image = np.array(fake[0], dtype='float')
             #pixels = first_image.reshape((28, 28))
             #plt.imshow(pixels, cmap='gray')
