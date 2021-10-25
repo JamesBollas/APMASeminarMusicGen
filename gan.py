@@ -41,7 +41,7 @@ batch_size = 100
 #image_size = 9000
 
 # size of training data vector
-nx = 900
+nx = 1500
 
 # Size of z latent vector (i.e. size of generator input)
 nz = 50
@@ -171,8 +171,8 @@ X = np.load("music_data.npz")
 #print(X['classical'].shape)
 #print(np.max(X['classical'][0]))
 styles = ['classical','baroque','modern','romantic','addon']
-used_styles = ['romantic']
-X = torch.Tensor(np.concatenate([X[x][:,:900] for x in used_styles]))
+used_styles = styles
+X = torch.Tensor(np.concatenate([X[x][:,:nx] for x in used_styles]))
 X /= 5
 #quit()
 dataset = torch.utils.data.TensorDataset(X)
@@ -273,6 +273,7 @@ for epoch in range(num_epochs):
         # Save Losses for plotting later
         G_losses.append(errG.item())
         D_losses.append(errD.item())
+        
         if epoch > 100 and D_G_z2 > .3:
             np.savez("gan_out.npz",fake.detach().cpu().numpy() * 5)
         

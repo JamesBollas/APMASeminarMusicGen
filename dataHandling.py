@@ -22,15 +22,15 @@ import random
 
 data_arrays = np.load('gan_out.npz')
 #data = [data_arrays['classical'],data_arrays['baroque'],data_arrays['modern'],data_arrays['romantic'],data_arrays['addon']]
-print(data_arrays['arr_0'][9])
+print(data_arrays['arr_0'][2])
 
-for item in data_arrays['arr_0'][2]:
-    if(abs(item) != 1):
-        print("hi")
         
 notes_list = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']
 
-temp = data_arrays['arr_0'][9].reshape(750,12)
+temp = data_arrays['arr_0'][3][:1500].reshape(-1,12)
+#print(temp)
+temp *= 5 / np.max(temp)
+print(np.max(temp))
 datas = [temp]
 MAX_VELOCITY = 127
 print(np.mean(datas[0]))
@@ -81,21 +81,20 @@ for data in datas:
                 count += 1
                 ttl += val
     print(ttl/count)
-    threshold = ttl/count
+    threshold = ttl/count * .5
     comp = Composition()
     last_oct = 4
     for note in notes_list:
         t = Track(MidiInstrument())
         t.instrument.midi_instr = i
         
-        for barnum in range(750 // 64):
+        for barnum in range(125 // 64):
             b = Bar()
             b.set_meter(song_meter)
             pos = 0
             while pos < 64:
                 last_oct = choose_octave(last_oct)
                 dur = nearest_pow_2(check_duration(i, barnum*64+pos, data,threshold))
-                print(dur)
                 to_play = Note(note,last_oct)
                 vel = int(data[barnum * 64 + pos,i])
                 to_play.set_velocity(vel)
